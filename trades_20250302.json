@@ -1,0 +1,40 @@
+{
+  "orders": [
+    {
+      "id": 1,
+      "order_id": "b90ac67e-5f6c-44c4-9bdb-ecdf3696d8d4",
+      "broker_order_id": "016af983-b814-4c82-a0d9-ba8e748d9e9f",
+      "symbol": "600580.SH",
+      "price": 24.599999999999998,
+      "quantity": 100,
+      "order_type": "LIMIT",
+      "strategy_id": "HighOpenStrategy",
+      "status": "SUBMITTED",
+      "filled_quantity": 0,
+      "avg_fill_price": 0.0,
+      "commission": 0.0,
+      "create_time": "2025-03-02T18:19:18.644124",
+      "update_time": "2025-03-02T18:19:18.780276",
+      "metadata": null
+    }
+  ],
+  "account": {
+    "balance": 999999.262,
+    "available": 997539.262,
+    "positions_value": 2460.0,
+    "initial_balance": 1000000.0
+  },
+  "positions": {
+    "600580.SH": {
+      "quantity": 100,
+      "cost": 24.6,
+      "current_price": 24.599999999999998
+    }
+  },
+  "statistics": {
+    "total_orders": 1,
+    "filled_orders": 0,
+    "total_commission": 0,
+    "total_slippage": 0
+  }
+}

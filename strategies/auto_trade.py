@@ -17,8 +17,6 @@ class AutoTradeStrategy(BaseStrategy):
     def __init__(self, config: Dict[str, Any] = None, broker=None):
         """初始化策略"""
         self.broker = broker  # 需要在super().__init__之前设置broker
-        self.logger = logging.getLogger("strategy.AutoTrade")
-        self.logger.setLevel(logging.INFO)
         
         # 初始化数据缓存
         self.daily_price_cache = {}  # 日线价格数据
@@ -28,6 +26,7 @@ class AutoTradeStrategy(BaseStrategy):
         self.intraday_volume_cache = {}  # 日内TICK成交量数据
         self.subscriptions = {}  # 初始化订阅列表
         
+        # 调用父类初始化
         super().__init__(config)
     
     def _init(self):
@@ -320,7 +319,7 @@ class AutoTradeStrategy(BaseStrategy):
         order = self.place_order(
             symbol=symbol,
             price=price,
-            quantity=quantity,
+            quantity=quantity,  # 正数表示买入
             order_type="LIMIT"
         )
         
@@ -341,7 +340,7 @@ class AutoTradeStrategy(BaseStrategy):
         order = self.place_order(
             symbol=symbol,
             price=price,
-            quantity=-position["volume"],
+            quantity=-position["volume"],  # 负数表示卖出
             order_type="LIMIT"
         )
         
@@ -357,7 +356,7 @@ class AutoTradeStrategy(BaseStrategy):
                 f"  原因: {reason}\n"
                 f"  收益: {profit:.2f}\n"
                 f"  收益率: {profit_rate:.2%}"
-            ) 
+            )
 
     def initialize(self):
         """实现抽象方法initialize"""

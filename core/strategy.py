@@ -4,7 +4,9 @@ import logging
 from datetime import datetime
 import pandas as pd
 
-from core.order import Order, OrderStatus
+from core.order import Order
+from models.order import OrderModel
+from utils.db import get_session
 
 class Strategy(ABC):
     def __init__(self):
@@ -34,11 +36,52 @@ class BaseStrategy(ABC):
         self.config = config or {}
         self.positions = {}  # 持仓信息
         self.strategy_id = None  # 策略ID
+        self.logger = logging.getLogger(self.__class__.__name__)
         
-        # 让子类先完成自己的初始化
+        # 加载全局配置
+        try:
+            with open("config.json", "r") as f:
+                import json
+                self.global_config = json.load(f)
+        except Exception as e:
+            self.logger.error(f"加载全局配置失败: {str(e)}")
+            self.global_config = {}
+        
+        # 初始化微信推送
+        try:
+            from utils.wechat_pusher import WeChatPusher
+            wechat_config = self.global_config.get("wechat_config")
+            if wechat_config and wechat_config.get("webhook_url"):
+                self.wechat_pusher = WeChatPusher(
+                    webhook_url=wechat_config["webhook_url"]
+                )
+                self.logger.info("微信群机器人推送服务初始化成功")
+            else:
+                self.logger.warning("未找到微信推送配置")
+        except Exception as e:
+            self.logger.error(f"微信推送服务初始化失败: {str(e)}")
+        
+        # 让子类完成初始化
         self._init()
         
-        # 然后再调用initialize
+        # 初始化股票特定配置
+        if self.config:
+            self.symbol = self.config.get("symbol")
+            self.name = self.config.get("name")
+            
+            # 初始化持仓信息
+            position_info = self.config.get("position", {})
+            self.positions[self.symbol] = {
+                "quantity": position_info.get("volume", 0),
+                "cost": position_info.get("cost", 0)
+            }
+            
+            # 获取策略特定参数
+            self.strategy_params = self.config.get("strategies", {}).get(
+                self.__class__.__name__.lower(), {}
+            )
+        
+        # 最后调用initialize
         self.initialize()
     
     def _init(self):
@@ -75,47 +118,87 @@ class BaseStrategy(ABC):
         """设置交易网关"""
         self.gateway = gateway
         
-    def place_order(self, symbol: str, price: float, quantity: int, 
+    def place_order(self, symbol: str, price: float, quantity: int,
                    order_type: str = "LIMIT") -> Optional[Order]:
-        """下单
-        
-        Args:
-            symbol: 股票代码
-            price: 价格
-            quantity: 数量（正数为买入，负数为卖出）
-            order_type: 订单类型，默认为限价单
-            
-        Returns:
-            Order: 订单对象
-        """
-        if self.gateway is None:
-            self.logger.error("交易网关未初始化")
-            return None
-            
+        """下单"""
         try:
-            # 确定交易方向
-            direction = "BUY" if quantity > 0 else "SELL"
-            abs_quantity = abs(quantity)  # 取绝对值作为实际数量
-            
             # 创建订单对象
             order = Order(
                 symbol=symbol,
                 price=price,
-                quantity=abs_quantity,
-                direction=direction,  # 添加明确的交易方向
+                quantity=abs(quantity),
                 order_type=order_type,
                 strategy_id=self.__class__.__name__
             )
             
-            # 通过网关下单
-            order_id = self.gateway.place_order(order)
-            if order_id:
-                order.order_id = order_id
-                return order
-            return None
+            if self.broker:
+                # 通过broker下单
+                result = self.broker.place_order(order)
+                if result:
+                    if isinstance(result, Order):
+                        order_result = result
+                    else:
+                        # 如果返回的是订单ID字符串，创建新的Order对象
+                        order_result = Order(
+                            symbol=symbol,
+                            price=price,
+                            quantity=abs(quantity),
+                            order_type=order_type,
+                            strategy_id=self.__class__.__name__,
+                            order_id=str(result),
+                            status="SUBMITTED"
+                        )
+                    
+                    # 保存订单到数据库
+                    with get_session() as session:
+                        order_model = OrderModel(
+                            order_id=order_result.order_id,
+                            symbol=symbol,
+                            price=price,
+                            quantity=quantity,
+                            order_type=order_type,
+                            strategy_id=self.__class__.__name__,
+                            status=order_result.status
+                        )
+                        session.add(order_model)
+                        session.commit()
+                    
+                    # 发送微信通知
+                    message = (
+                        f"交易提醒\n"
+                        f"策略: {self.__class__.__name__}\n"
+                        f"操作: {'买入' if quantity > 0 else '卖出'}\n"
+                        f"股票: {symbol}\n"
+                        f"价格: {price:.2f}\n"
+                        f"数量: {abs(quantity)}\n"
+                        f"订单号: {order_result.order_id}"
+                    )
+                    self._send_wechat_message(message)
+                    return order_result
+                else:
+                    self.logger.error("下单失败：broker返回空结果")
+                    return None
+            else:
+                self.logger.error("broker未设置")
+                return None
+                
         except Exception as e:
             self.logger.error(f"下单失败: {str(e)}")
             return None
+    
+    def _send_wechat_message(self, message: str):
+        """发送微信消息，添加股票名称信息"""
+        try:
+            if hasattr(self, 'wechat_pusher'):
+                # 在消息中添加股票名称
+                stock_info = (f"[{self.name}({self.symbol})]"
+                            if hasattr(self, 'name') else "")
+                formatted_message = f"{stock_info}\n{message}"
+                self.wechat_pusher.send(formatted_message)
+            else:
+                self.logger.warning("未配置微信推送服务")
+        except Exception as e:
+            self.logger.error(f"发送微信消息失败: {str(e)}")
     
     def on_order_update(self, order: Order):
         """订单状态更新回调

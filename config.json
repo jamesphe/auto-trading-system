@@ -53,6 +53,9 @@
       "update_interval": 30
     }
   },
+  "wechat_config": {
+    "webhook_url": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=c4dff2e3-4d42-4dc4-a8c9-883d4b965e76"
+  },
   "logging": {
     "level": "DEBUG",
     "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",

@@ -291,7 +291,10 @@ def main():
                 "type": "AutoTrade",
                 "symbols": [symbol],
                 "stocks": config["stocks"],
-                "auto_trade": stock_config["strategies"]["auto_trade"]
+                "auto_trade": stock_config["strategies"]["auto_trade"],
+                # 添加其他必要的配置
+                "market_data": config["market_data"],
+                "risk": config["risk"]
             }
             strategy = AutoTradeStrategy(strategy_config, broker=gateway)
             strategy_id = f"auto_trade_{symbol}"
