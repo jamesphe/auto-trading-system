@@ -1,0 +1,56 @@
+version: '3'
+
+services:
+  trading-engine:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - TRADE_MODE=LIVE
+      - LOG_LEVEL=INFO
+      - RULE_WORKERS=8
+      - MAX_ORDERS_PER_SEC=50
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 8G
+    restart: always
+  
+  redis:
+    image: redis:6.2-alpine
+    volumes:
+      - redis-data:/data
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 2G
+    restart: always
+  
+  prometheus:
+    image: prom/prometheus:v2.40.0
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
+    ports:
+      - "9090:9090"
+    restart: always
+  
+  grafana:
+    image: grafana/grafana:9.3.0
+    volumes:
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin123
+    restart: always
+
+volumes:
+  redis-data:
+  prometheus-data:
+  grafana-data: 

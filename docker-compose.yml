@@ -1,0 +1,27 @@
+version: '3'
+
+services:
+  trading-engine:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    volumes:
+      - .:/app
+    environment:
+      - TRADE_MODE=SANDBOX
+      - LOG_LEVEL=INFO
+    ports:
+      - "8000:8000"
+    command: python main.py --mode paper
+    restart: unless-stopped
+  
+  redis:
+    image: redis:6.2-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+
+volumes:
+  redis-data: 

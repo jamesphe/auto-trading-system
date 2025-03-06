@@ -1,0 +1,5 @@
+12:48:47 [ERROR] 初始化市场数据客户端失败: 'RuleEngine' object has no attribute 'register_market_client'
+12:50:45 [ERROR] 初始化市场数据客户端失败: 'RuleEngine' object has no attribute 'register_market_client'
+12:50:45 [ERROR] live模式下无法回退到模拟器模式，程序退出
+12:51:51 [ERROR] 初始化市场数据客户端失败: MarketDataClient.subscribe() missing 1 required positional argument: 'handlers'
+12:51:51 [ERROR] live模式下无法回退到模拟器模式，程序退出

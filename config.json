@@ -1,0 +1,61 @@
+{
+  "engine": {
+    "max_orders_per_sec": 10,
+    "rule_workers": 4
+  },
+  "storage": {
+    "db_path": "trading.db",
+    "save_market_data": true,
+    "save_interval": 60
+  },
+  "risk": {
+    "max_order_value_rule": {
+      "max_order_value": 100000
+    },
+    "max_position_rule": {
+      "max_position": 1000
+    },
+    "order_frequency_rule": {
+      "max_orders_per_minute": 5
+    }
+  },
+  "market_data": {
+    "data_source": "akshare",
+    "stocks_config_dir": "config/stocks",
+    "update_interval": 30,
+    "debug_mode": true,
+    "use_real_data": true,
+    "rate_limit": {
+      "enabled": true,
+      "requests_per_minute": 2
+    },
+    "storage": {
+      "db_path": "trading.db",
+      "save_market_data": true,
+      "save_interval": 60
+    }
+  },
+  "trade": {
+    "initial_balance": 1000000.0,
+    "commission_rate": 0.0003,
+    "slippage": 0.001
+  },
+  "metrics": {
+    "export_path": "metrics",
+    "export_interval": 60,
+    "keep_history": false
+  },
+  "strategy": {
+    "stocks_config_dir": "config/stocks",
+    "common": {
+      "position_size": 100,
+      "debug_mode": true,
+      "update_interval": 30
+    }
+  },
+  "logging": {
+    "level": "DEBUG",
+    "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    "date_format": "%Y-%m-%d %H:%M:%S"
+  }
+} 
