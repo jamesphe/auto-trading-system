@@ -10,12 +10,12 @@ from core.order import Order, OrderStatus, OrderType
 class TradeGateway:
     """交易网关基类"""
     
-    def __init__(self, config: Dict[str, Any] = None):
+    def __init__(self, config: Dict[str, Any] = None, engine=None, market_client=None):
         self.config = config or {}
         self.logger = logging.getLogger("gateway.TradeGateway")
         self.logger.info("初始化交易网关")
         self.connected = False
-        self.market_client = None  # 添加market_client属性
+        self.market_client = market_client  # 直接存储market_client引用
         
         # 抑制 pandas SettingWithCopyWarning
         import pandas as pd
@@ -139,8 +139,8 @@ class TradeGateway:
 class SimulatedTradeGateway(TradeGateway):
     """模拟交易网关"""
     
-    def __init__(self, config: Dict[str, Any] = None):
-        super().__init__(config)
+    def __init__(self, config: Dict[str, Any] = None, engine=None, market_client=None):
+        super().__init__(config, engine, market_client)
         self.orders = {}  # broker_order_id -> order_info
         self.positions = {}  # symbol -> quantity
         self.position_costs = {}  # symbol -> average_cost

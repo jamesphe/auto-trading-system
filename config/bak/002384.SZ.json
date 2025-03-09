@@ -1,0 +1,23 @@
+{
+    "symbol": "002384.SZ",
+    "name": "东山精密",
+    "position": {
+      "volume": 200,
+      "cost": 33.05
+    },
+    "strategies": {
+      "auto_trade": {
+        "enabled": false,
+        "rsi_period": 6,
+        "rsi_oversold": 35,
+        "rsi_overbought": 65,
+        "boll_period": 20,
+        "boll_std": 2,
+        "volume_ma_period": 20,
+        "volume_ratio_threshold": 2.5,
+        "profit_target": 0.15,
+        "stop_loss": 0.05,
+        "position_limit": 0.3
+      }
+    }
+  } 

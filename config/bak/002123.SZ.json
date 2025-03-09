@@ -1,0 +1,23 @@
+{
+    "symbol": "002123.SZ",
+    "name": "梦网科技",
+    "position": {
+      "volume": 100,
+      "cost": 19.83
+    },
+    "strategies": {
+      "auto_trade": {
+        "enabled": false,
+        "rsi_period": 6,
+        "rsi_oversold": 40,
+        "rsi_overbought": 65,
+        "boll_period": 20,
+        "boll_std": 1.8,
+        "volume_ma_period": 30,
+        "volume_ratio_threshold": 1.5,
+        "profit_target": 0.05,
+        "stop_loss": 0.08,
+        "position_limit": 0.3
+      }
+    }
+  } 

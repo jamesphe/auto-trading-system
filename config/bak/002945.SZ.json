@@ -1,0 +1,23 @@
+{
+    "symbol": "002945.SZ",
+    "name": "华林证券",
+    "position": {
+      "volume": 400,
+      "cost": 15.98
+    },
+    "strategies": {
+      "auto_trade": {
+        "enabled": false,
+        "rsi_period": 6,
+        "rsi_oversold": 35,
+        "rsi_overbought": 68,
+        "boll_period": 20,
+        "boll_std": 1.6,
+        "volume_ma_period": 10,
+        "volume_ratio_threshold": 2.5,
+        "profit_target": 0.06,
+        "stop_loss": 0.035,
+        "position_limit": 0.3
+      }
+    }
+  } 

@@ -20,7 +20,7 @@ class RuleEngine:
         # 设置日志
         self.logger = logging.getLogger("engine.RuleEngine")
         # 确保日志级别设置为DEBUG
-        self.logger.setLevel(logging.INFO)
+        self.logger.setLevel(logging.ERROR)
         
         # 添加控制台处理器(如果还没有的话)
         if not self.logger.handlers:
@@ -57,6 +57,7 @@ class RuleEngine:
         self.market_client = MarketDataClient(self.config.get("market_data", {}))
         
         self.gateway = gateway
+        self.strategy_manager = None  # 添加策略管理器属性
     
     def register_strategy(self, strategy_id: str, strategy: BaseStrategy):
         """注册策略"""
@@ -72,20 +73,11 @@ class RuleEngine:
     
     def _process_market_data(self, event):
         """处理市场数据"""
-        self.logger.debug(
-            f"开始处理事件:\n"
-            f"  类型: {event.type}\n"
-            f"  数据: {event.data}\n"
-            f"  注册策略数: {len(self.strategies)}"  # 这里显示为0
-        )
-        
-        # 调用每个策略的on_tick方法
-        for strategy in self.strategies:
+        if self.strategy_manager:
             try:
-                if event.type == "market.tick":
-                    strategy.on_tick(event.data)
+                self.strategy_manager.on_market_data(event.data)
             except Exception as e:
-                self.logger.error(f"策略处理异常: {e}", exc_info=True)
+                self.logger.error(f"策略执行错误: {str(e)}", exc_info=True)
     
     def on_market_data(self, data_type: str, data: Dict[str, Any]):
         """处理市场数据"""

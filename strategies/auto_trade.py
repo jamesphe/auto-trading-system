@@ -143,14 +143,14 @@ class AutoTradeStrategy(BaseStrategy):
         self.logger.debug(f"计算出的技术指标: {indicators}")
         return indicators
         
-    def check_buy_signals(self, indicators: Dict[str, float]) -> bool:
+    def check_buy_signals(self, indicators: Dict[str, float]) -> tuple[bool, str]:
         """检查买入信号
         
         Args:
             indicators: 技术指标数据
             
         Returns:
-            bool: 是否有买入信号
+            tuple[bool, str]: (是否有买入信号, 信号触发原因)
         """
         # RSI超卖
         rsi_signal = indicators["rsi"] <= self.rsi_oversold
@@ -163,16 +163,27 @@ class AutoTradeStrategy(BaseStrategy):
         volume_signal = indicators["volume_ratio"] >= self.volume_ratio_threshold
         
         # 综合信号
-        return rsi_signal and boll_signal and volume_signal
+        signal = rsi_signal and boll_signal and volume_signal
         
-    def check_sell_signals(self, indicators: Dict[str, float]) -> bool:
+        if signal:
+            reason = (
+                f"RSI超卖({indicators['rsi']:.2f} <= {self.rsi_oversold}), "
+                f"价格接近布林下轨({price:.2f} <= {indicators['boll_lower']*1.01:.2f}), "
+                f"成交量放大({indicators['volume_ratio']:.2f}倍)"
+            )
+        else:
+            reason = ""
+            
+        return signal, reason
+        
+    def check_sell_signals(self, indicators: Dict[str, float]) -> tuple[bool, str]:
         """检查卖出信号
         
         Args:
             indicators: 技术指标数据
             
         Returns:
-            bool: 是否有卖出信号
+            tuple[bool, str]: (是否有卖出信号, 信号触发原因)
         """
         # RSI超买
         rsi_signal = indicators["rsi"] >= self.rsi_overbought
@@ -181,19 +192,30 @@ class AutoTradeStrategy(BaseStrategy):
         price = indicators["current_price"]
         boll_signal = price >= indicators["boll_upper"] * 0.99
         
-        # 成交量萎缩信号（当前成交量低于均线的50%）
+        # 成交量萎缩信号
         volume_shrink = indicators["volume_ratio"] <= 0.5
         
-        # 价格动量减弱信号（可以通过比较当前价格与前一个周期的移动平均价格）
+        # 价格动量减弱信号
         price_momentum = price < indicators["boll_middle"]
         
-        # 组合卖出信号：
-        # 1. RSI超买 且 (价格接近布林上轨 或 成交量萎缩)
-        # 2. 或者 价格突破布林上轨 且 成交量萎缩
-        # 3. 或者 RSI超买 且 价格动量减弱
-        return (rsi_signal and (boll_signal or volume_shrink)) or \
-               (boll_signal and volume_shrink) or \
-               (rsi_signal and price_momentum)
+        # 组合卖出信号
+        signal = False
+        reason = ""
+        
+        if rsi_signal and boll_signal:
+            signal = True
+            reason = f"RSI超买({indicators['rsi']:.2f})且价格接近布林上轨({price:.2f})"
+        elif rsi_signal and volume_shrink:
+            signal = True
+            reason = f"RSI超买({indicators['rsi']:.2f})且成交量萎缩({indicators['volume_ratio']:.2f}倍)"
+        elif boll_signal and volume_shrink:
+            signal = True
+            reason = f"价格接近布林上轨({price:.2f})且成交量萎缩({indicators['volume_ratio']:.2f}倍)"
+        elif rsi_signal and price_momentum:
+            signal = True
+            reason = f"RSI超买({indicators['rsi']:.2f})且价格动量减弱(当前价格{price:.2f} < 布林中轨{indicators['boll_middle']:.2f})"
+            
+        return signal, reason
         
     def on_tick(self, tick_data: Dict[str, Any]):
         """处理TICK数据"""
@@ -279,26 +301,28 @@ class AutoTradeStrategy(BaseStrategy):
                 
         # 检查交易信号
         if position["volume"] == 0:
-            buy_signal = self.check_buy_signals(indicators)
+            buy_signal, buy_reason = self.check_buy_signals(indicators)
             self.logger.debug(
                 f"买入信号检查:\n"
                 f"  是否满足买入条件: {buy_signal}\n"
+                f"  信号触发原因: {buy_reason}\n"
                 f"  RSI: {indicators['rsi']:.2f} (阈值: {self.rsi_oversold})\n"
                 f"  价格/布林下轨: {current_price/indicators['boll_lower']:.2f}\n"
                 f"  量比: {indicators['volume_ratio']:.2f} (阈值: {self.volume_ratio_threshold})"
             )
             if buy_signal:
-                self.buy_stock(symbol, current_price)
+                self.buy_stock(symbol, current_price, buy_reason)
         elif position["volume"] > 0:
-            sell_signal = self.check_sell_signals(indicators)
+            sell_signal, sell_reason = self.check_sell_signals(indicators)
             self.logger.debug(
                 f"卖出信号检查:\n"
                 f"  是否满足卖出条件: {sell_signal}\n"
+                f"  信号触发原因: {sell_reason}\n"
                 f"  RSI: {indicators['rsi']:.2f} (阈值: {self.rsi_overbought})\n"
                 f"  价格/布林上轨: {current_price/indicators['boll_upper']:.2f}"
             )
             if sell_signal:
-                self.sell_stock(symbol, current_price, "技术指标")
+                self.sell_stock(symbol, current_price, sell_reason)
 
     def get_available_cash(self) -> float:
         """获取可用现金"""
@@ -306,7 +330,7 @@ class AutoTradeStrategy(BaseStrategy):
             return self.broker.get_account_info().get('available_cash', 0.0)
         return 0.0
 
-    def buy_stock(self, symbol: str, price: float):
+    def buy_stock(self, symbol: str, price: float, reason: str):
         """买入股票"""
         # 计算买入数量
         available_cash = self.get_available_cash()
@@ -320,6 +344,7 @@ class AutoTradeStrategy(BaseStrategy):
             symbol=symbol,
             price=price,
             quantity=quantity,  # 正数表示买入
+            reason=reason,
             order_type="LIMIT"
         )
         
@@ -328,35 +353,65 @@ class AutoTradeStrategy(BaseStrategy):
                 f"创建买入订单:\n"
                 f"  股票: {symbol}\n"
                 f"  价格: {price:.2f}\n"
-                f"  数量: {quantity}"
+                f"  数量: {quantity}\n"
+                f"  原因: {reason}"
             )
             
+            # 更新持仓信息
+            current_position = self.positions.get(symbol, {"volume": 0, "cost": 0.0})
+            new_volume = current_position["volume"] + quantity
+            new_cost = ((current_position["volume"] * current_position["cost"]) + 
+                       (quantity * price)) / new_volume
+            
+            self.positions[symbol] = {
+                "volume": new_volume,
+                "cost": new_cost,
+                "entry_time": datetime.now()
+            }
+            
+            self.logger.info(
+                f"更新持仓信息:\n"
+                f"  持仓量: {new_volume}\n"
+                f"  成本价: {new_cost:.2f}"
+            )
+        
     def sell_stock(self, symbol: str, price: float, reason: str):
         """卖出股票"""
-        position = self.positions.get(symbol)
-        if not position or position["volume"] == 0:
+        if symbol not in self.positions:
             return
-            
+        
+        position = self.positions[symbol]
+        quantity = position["volume"]
+        cost = position["cost"]
+        
+        # 创建卖出订单
         order = self.place_order(
             symbol=symbol,
             price=price,
-            quantity=-position["volume"],  # 负数表示卖出
+            quantity=-quantity,  # 负数表示卖出
+            reason=reason,
             order_type="LIMIT"
         )
         
         if order:
-            profit = (price - position["cost"]) * position["volume"]
-            profit_rate = (price - position["cost"]) / position["cost"]
+            # 计算收益
+            profit = (price - cost) * quantity
+            profit_rate = (price - cost) / cost
             
             self.logger.info(
-                f"创建卖出订单:\n"
-                f"  股票: {symbol}\n"
-                f"  价格: {price:.2f}\n"
-                f"  数量: {position['volume']}\n"
-                f"  原因: {reason}\n"
-                f"  收益: {profit:.2f}\n"
-                f"  收益率: {profit_rate:.2%}"
+                f"卖出 {symbol}:\n"
+                f"  价格={price:.2f}\n"
+                f"  数量={quantity}\n"
+                f"  原因={reason}\n"
+                f"  收益={profit:.2f}\n"
+                f"  收益率={profit_rate:.2%}"
             )
+            
+            # 清空持仓记录
+            self.positions[symbol] = {
+                "volume": 0,
+                "cost": 0.0
+            }
 
     def initialize(self):
         """实现抽象方法initialize"""

@@ -1,0 +1,28 @@
+{
+    "symbol": "300076.SZ",
+    "name": "GQY视讯",
+    "position": {
+      "volume": 800,
+      "cost": 8.23
+    },
+    "strategies": {
+      "chandelier_exit": {
+        "enabled": true,
+        "daily_lookback": 22,
+        "hourly_lookback": 8,
+        "daily_multiplier": 3.0,
+        "hourly_multiplier": 2.0,
+        "initial_stop_atr": 2.0,
+        "risk_per_trade": 0.01,
+        "first_exit_ratio": 0.5,
+        "max_add_times": 2,
+        "target_type": "atr",
+        "target_value": 3.0,
+        "add_position_ratio": 0.3,
+        "drawdown_exit": 0.3,
+        "volume_check_ratio": 0.05,
+        "volatility_exit": 1.5,
+        "margin_limit": 0.8
+      }
+    }
+  } 

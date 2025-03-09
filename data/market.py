@@ -1,4 +1,4 @@
-from typing import Dict, List, Any, Callable
+from typing import Dict, List, Any, Callable, Optional
 import logging
 import threading
 import time
@@ -94,41 +94,92 @@ class MarketDataClient:
                    start: datetime, 
                    end: datetime, 
                    timeframe: str = "1d") -> pd.DataFrame:
-        """获取历史K线数据
-        
-        Args:
-            symbol: 标的代码
-            start: 开始时间
-            end: 结束时间
-            timeframe: 时间周期
-            
-        Returns:
-            pd.DataFrame: 历史数据
-        """
+        """获取历史K线数据"""
         if not self.use_real_data:
             return self._get_simulated_history(symbol, start, end, timeframe)
         
-        code = symbol.split('.')[0]
         try:
+            # 从股票代码中提取数字部分和市场代码
+            code = symbol.split('.')[0]
+            market = symbol.split('.')[-1]
+            
+            # 转换为akshare需要的格式
+            if market == 'SZ':
+                ak_symbol = f"sz{code}"
+            elif market == 'SH':
+                ak_symbol = f"sh{code}"
+            else:
+                raise ValueError(f"不支持的市场代码: {market}")
+            
+            self.logger.debug(
+                f"获取历史数据:\n"
+                f"  原始代码: {symbol}\n"
+                f"  转换后代码: {ak_symbol}\n"
+                f"  时间范围: {start} - {end}"
+            )
+            
             # 使用akshare获取历史数据
-            df = ak.stock_zh_a_hist(symbol=code, 
-                                  start_date=start.strftime("%Y%m%d"),
-                                  end_date=end.strftime("%Y%m%d"),
-                                  adjust="qfq")  # 前复权数据
+            try:
+                # 尝试使用东方财富数据源
+                df = ak.stock_zh_a_hist(
+                    symbol=ak_symbol,  # 使用转换后的代码
+                    period="daily",
+                    start_date=start.strftime("%Y%m%d"),
+                    end_date=end.strftime("%Y%m%d"),
+                    adjust="qfq"
+                )
+                # 东方财富数据源的列名映射
+                rename_dict = {
+                    "日期": "timestamp",
+                    "开盘": "open",
+                    "最高": "high",
+                    "最低": "low",
+                    "收盘": "close",
+                    "成交量": "volume",
+                    "成交额": "amount"
+                }
+            except KeyError:
+                # 如果失败，尝试使用腾讯数据源
+                self.logger.info("东方财富数据源失败，尝试使用腾讯数据源...")
+                df = ak.stock_zh_a_hist_tx(
+                    symbol=ak_symbol,  # 使用转换后的代码
+                    start_date=start.strftime("%Y%m%d"),
+                    end_date=end.strftime("%Y%m%d"),
+                    adjust="qfq"
+                )
+                # 腾讯数据源的列名映射
+                rename_dict = {
+                    "date": "timestamp",
+                    "vol": "volume",  # 腾讯数据源使用 'vol' 表示成交量
+                    "amount": "amount"
+                }
+                # 其他列名已经符合标准格式
             
             if df.empty:
+                self.logger.error(f"获取历史数据为空: {symbol}")
                 raise ValueError(f"获取历史数据为空: {symbol}")
             
-            # 重命名列以统一格式
-            df = df.rename(columns={
-                "日期": "timestamp",
-                "开盘": "open",
-                "最高": "high",
-                "最低": "low",
-                "收盘": "close",
-                "成交量": "volume",
-                "成交额": "amount"
-            })
+            # 打印原始列名，帮助调试
+            self.logger.debug(f"原始数据列名: {df.columns.tolist()}")
+            
+            # 重命名列
+            df = df.rename(columns=rename_dict)
+            
+            # 如果volume列不存在，尝试从amount计算
+            if 'volume' not in df.columns and 'amount' in df.columns:
+                self.logger.info("从成交额计算成交量")
+                # 使用成交额除以收盘价估算成交量
+                df['volume'] = (df['amount'] / df['close']).astype(int)
+            
+            # 确保所有必需的列都存在
+            required_columns = ["timestamp", "open", "high", "low", "close", "volume"]
+            missing_columns = [col for col in required_columns if col not in df.columns]
+            if missing_columns:
+                self.logger.error(
+                    f"数据缺少必需的列: {missing_columns}\n"
+                    f"现有列: {df.columns.tolist()}"
+                )
+                raise ValueError(f"数据缺少必需的列: {missing_columns}")
             
             # 转换日期格式
             df['timestamp'] = pd.to_datetime(df['timestamp'])
@@ -136,9 +187,23 @@ class MarketDataClient:
             # 按时间排序
             df = df.sort_values('timestamp')
             
+            self.logger.info(
+                f"成功获取历史数据:\n"
+                f"  股票: {symbol}\n"
+                f"  数据长度: {len(df)}\n"
+                f"  时间范围: {df['timestamp'].min()} - {df['timestamp'].max()}\n"
+                f"  列名: {df.columns.tolist()}"
+            )
+            
             return df
             
         except Exception as e:
+            self.logger.error(
+                f"获取历史数据失败:\n"
+                f"  股票: {symbol}\n"
+                f"  错误: {str(e)}\n",
+                exc_info=True
+            )
             if self.config.get("mode") == "live":
                 raise  # live模式下直接抛出异常
             else:
@@ -455,28 +520,21 @@ class MarketDataClient:
         self.logger.info("关闭行情连接")
         # 如果有需要清理的资源，在这里添加清理代码 
 
-    def get_realtime_quotes(self, symbols: List[str]) -> List[Dict[str, Any]]:
+    def get_realtime_data(self, symbol: str) -> Optional[Dict[str, Any]]:
         """获取实时行情数据"""
-        if not self.use_real_data:
-            return self._get_simulated_quotes(symbols)
-        
-        for symbol in symbols:
-            code = symbol.split('.')[0]
-            try:
-                df = ak.stock_zh_a_spot_em()
-                if df.empty:
-                    raise ValueError(f"获取行情数据为空: {symbol}")
-                
-                stock_data = df[df['代码'] == code]
-                if stock_data.empty:
-                    raise ValueError(f"未找到股票行情数据: {symbol}")
-                
-                # 处理真实数据...
-                
-            except Exception as e:
-                if self.config.get("mode") == "live":
-                    raise  # live模式下直接抛出异常
-                else:
-                    # 非live模式下可以使用测试数据
-                    self.logger.warning(f"使用测试数据替代: {str(e)}")
-                    return self._get_simulated_quotes(symbols) 
+        try:
+            # 使用数据源获取实时行情
+            if self.data_source:
+                data = self.data_source.get_realtime_data(symbol)
+                if data:
+                    return data
+            
+            # 如果数据源获取失败或未配置数据源，使用模拟数据
+            if not self.use_real_data:
+                return self._get_simulated_realtime_data(symbol)
+            
+            self.logger.error(f"无法获取实时行情: {symbol}")
+            return None
+        except Exception as e:
+            self.logger.error(f"获取实时行情异常: {str(e)}", exc_info=True)
+            return None

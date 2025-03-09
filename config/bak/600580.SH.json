@@ -1,0 +1,68 @@
+{
+  "symbol": "600580.SH",
+  "name": "卧龙电驱",
+  "position": {
+    "volume": 500,
+    "cost": 16.81
+  },
+  "high_open": {
+    "enabled": false,
+    "price_threshold": 74.50,
+    "high_open_ratio": 0.02,
+    "profit_target": 0.05,
+    "stop_loss": 0.03,
+    "volume_check_window": 30,
+    "sell_ratios": {
+      "volume_high": 0.5,
+      "volume_low": 0.8,
+      "keep_position": 0.2
+    },
+    "price_offsets": {
+      "sell_high": 1.0,
+      "hold_level": 0.3
+    }
+  },
+  "normal_open": {
+    "enabled": false,
+    "upper_threshold": 74.50,
+    "lower_threshold": 73.50,
+    "boll_mid": 73.56,
+    "volume_ratio_threshold": 1.2,
+    "sell_ratios": {
+      "initial_sell": 0.7
+    },
+    "price_offsets": {
+      "sell_near_upper": 0.3,
+      "target_high": 1.5
+    }
+  },
+  "low_open": {
+    "enabled": false,
+    "threshold": 73.50,
+    "stop_loss_threshold": -0.05,
+    "sell_ratios": {
+      "initial_sell": 0.4,
+      "secondary_sell": 0.6
+    },
+    "price_offsets": {
+      "sell_low": 0.5,
+      "bounce_check": 0.2,
+      "target_bounce": 0.3
+    }
+  },
+  "strategies": {
+    "auto_trade": {
+      "enabled": false,
+      "rsi_period": 6,
+      "rsi_oversold": 35,
+      "rsi_overbought": 80,
+      "boll_period": 20,
+      "boll_std": 2,
+      "volume_ma_period": 14,
+      "volume_ratio_threshold": 1.5,
+      "profit_target": 0.8,
+      "stop_loss": 0.03,
+      "position_limit": 0.3
+    }
+  }
+} 

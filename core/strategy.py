@@ -118,7 +118,7 @@ class BaseStrategy(ABC):
         """设置交易网关"""
         self.gateway = gateway
         
-    def place_order(self, symbol: str, price: float, quantity: int,
+    def place_order(self, symbol: str, price: float, quantity: int, reason: str,
                    order_type: str = "LIMIT") -> Optional[Order]:
         """下单"""
         try:
@@ -171,6 +171,7 @@ class BaseStrategy(ABC):
                         f"股票: {symbol}\n"
                         f"价格: {price:.2f}\n"
                         f"数量: {abs(quantity)}\n"
+                        f"原因: {reason}\n"
                         f"订单号: {order_result.order_id}"
                     )
                     self._send_wechat_message(message)
@@ -190,10 +191,11 @@ class BaseStrategy(ABC):
         """发送微信消息，添加股票名称信息"""
         try:
             if hasattr(self, 'wechat_pusher'):
-                # 在消息中添加股票名称
-                stock_info = (f"[{self.name}({self.symbol})]"
-                            if hasattr(self, 'name') else "")
-                formatted_message = f"{stock_info}\n{message}"
+                # 只有当name和symbol都存在时才添加股票信息
+                stock_info = ""
+                if hasattr(self, 'name') and hasattr(self, 'symbol') and self.name and self.symbol:
+                    stock_info = f"[{self.name}({self.symbol})]\n"
+                formatted_message = f"{stock_info}{message}"
                 self.wechat_pusher.send(formatted_message)
             else:
                 self.logger.warning("未配置微信推送服务")
@@ -241,7 +243,7 @@ class BaseStrategy(ABC):
     def buy_stock(self, symbol: str, price: float):
         """买入股票"""
         position_size = self.config.get("position_size", 100)
-        order = self.place_order(symbol, price, position_size)
+        order = self.place_order(symbol, price, position_size, "买入")
         if order:
             self.logger.info(f"创建订单: {order}")
             self.logger.info(f"买入 {symbol}: 价格={price}, 数量={position_size}")

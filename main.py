@@ -23,6 +23,7 @@ from data.market import MarketDataClient
 from utils.config import load_stock_configs
 from gateway.broker import TradeGateway, SimulatedTradeGateway
 from strategies.auto_trade import AutoTradeStrategy
+from strategies.strategy_manager import StrategyManager  # 添加导入
 
 logger = logging.getLogger("main")
 
@@ -139,23 +140,27 @@ def main():
     running = True
     
     # 创建市场数据客户端
-    market_config = config["market_data"].copy()
-    market_config["use_real_data"] = True
-    market_config["data_source"] = "akshare"
-    market_config["mode"] = args.mode
+    market_client = MarketDataClient(config)
     
-    market_client = MarketDataClient(market_config)
+    # 创建broker时传入market_client
+    broker = SimulatedTradeGateway(market_client=market_client)
     
-    # 创建交易网关并设置market_client
-    gateway = SimulatedTradeGateway(config.get("trade", {}))
-    gateway.set_market_client(market_client)
+    # 创建strategy_manager
+    strategy_manager = StrategyManager(broker=broker)
     
     # 创建规则引擎，传入交易网关
-    engine = RuleEngine(gateway=gateway)
+    engine = RuleEngine(gateway=broker)
     
     # 创建风控管理器
     risk_manager = RiskManager(config.get("risk", {}))
     engine.set_risk_manager(risk_manager)
+    
+    # 初始化策略管理器
+    strategy_manager.initialize(config)
+    logger.info("策略管理器初始化完成")
+
+    # 将策略管理器设置到交易引擎
+    engine.strategy_manager = strategy_manager
     
     # 如果是live模式，添加调试代码
     if args.mode == "live":
@@ -296,7 +301,7 @@ def main():
                 "market_data": config["market_data"],
                 "risk": config["risk"]
             }
-            strategy = AutoTradeStrategy(strategy_config, broker=gateway)
+            strategy = AutoTradeStrategy(strategy_config, broker=broker)
             strategy_id = f"auto_trade_{symbol}"
             engine.register_strategy(strategy_id, strategy)
             logger.info(
